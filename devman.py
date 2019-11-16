@@ -1,15 +1,12 @@
-# import logging.config
 import os
 
 import requests
 
-# from config import LOGGING_CONFIG
 from config import logger
+
 
 DEVMAN_TOKEN=os.environ['DEVMAN_TOKEN']
 
-# logging.config.dictConfig(LOGGING_CONFIG)
-# logger = logging.getLogger(__name__)
 
 class DevmanAPI:
 
@@ -42,7 +39,7 @@ class DevmanAPI:
                 response = r.json()
                 status = response.get('status')
 
-                logger.info(f'Got from server: {response}')
+                logger.debug(f'Got from server: {response}')
 
                 if status == 'timeout':
                     params.update({'timestamp': response.get('timestamp_to_request')})

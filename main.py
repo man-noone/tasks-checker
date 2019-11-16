@@ -4,12 +4,13 @@ import logging
 from telegram.ext import Updater
 from telegram.ext import CommandHandler
 
+from config import logger
+from devman import DevmanAPI
+
 
 TELEGRAM_TOKEN = os.environ['TELEGRAM_TOKEN']
 G = {}
 
-from config import logger
-from devman import DevmanAPI
 
 class BotHandler(logging.Handler):
     def __init__(self, bot):
@@ -17,11 +18,6 @@ class BotHandler(logging.Handler):
         self.bot = bot
 
     def emit(self, record):
-        print()
-        print('----------')
-        print(G.get('chat_id'))
-        print('----------')
-        print()
         msg = self.format(record)
         self.bot.send_message(chat_id=G.get('chat_id'), text=msg)
 
@@ -53,11 +49,11 @@ def fetch_updates():
 
 
 def error(update, context):
-    # chat_id = update.effective_chat.id
     logger.debug(f'Update {update} caused error {context.error}')
 
 
 def hello_user(update, context):
+    G['chat_id'] = update.effective_chat.id
     username = update.effective_user.username
     message = f'Hello, {username}!'
     context.bot.send_message(chat_id=update.effective_chat.id, text=message)
@@ -101,8 +97,6 @@ if __name__ == '__main__':
     bot_handler = BotHandler(bot)
     bot_handler.setLevel(logging.DEBUG)
     logger.addHandler(bot_handler)
-
-    # from devman import DevmanAPI
 
     updater.start_polling()
     updater.idle()
