@@ -108,5 +108,16 @@ if __name__ == '__main__':
     bot_handler.setLevel(logging.DEBUG)
     logger.addHandler(bot_handler)
 
-    updater.start_polling()
-    updater.idle()
+    while True:
+        try:
+            updater.start_polling()
+            # raise ZeroDivisionError
+            updater.idle()
+        except Exception as e:
+            # Я не могу отправить сообщение пользователю
+            # без chat_id, а он появляется только после того, как
+            # пользователь хоть что-то напишет.
+            # Если исключение возбуждается уже после некоторого взаимодействия
+            # с пользователем,то пользователь получит traceback.
+            # Но во всех случаях бот продолжает работать.
+            logger.debug(f'Error occured:\n{e}', exc_info=True)
