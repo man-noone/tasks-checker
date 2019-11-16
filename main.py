@@ -1,5 +1,6 @@
 import os
 import logging
+from functools import wraps
 
 from telegram.ext import Updater
 from telegram.ext import CommandHandler
@@ -10,6 +11,15 @@ from devman import DevmanAPI
 
 TELEGRAM_TOKEN = os.environ['TELEGRAM_TOKEN']
 G = {}
+
+
+def update_chat_id(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        update, context = args
+        G.update({'chat_id': update.effective_chat.id})
+        return func(*args, **kwargs)
+    return wrapper
 
 
 class BotHandler(logging.Handler):
@@ -47,20 +57,20 @@ def fetch_updates():
 
     return result
 
-
+@update_chat_id
 def error(update, context):
     logger.debug(f'Update {update} caused error {context.error}')
 
 
+@update_chat_id
 def hello_user(update, context):
-    G['chat_id'] = update.effective_chat.id
     username = update.effective_user.username
     message = f'Hello, {username}!'
     context.bot.send_message(chat_id=update.effective_chat.id, text=message)
 
 
+@update_chat_id
 def check(update, context):
-    G['chat_id'] = update.effective_chat.id
 
     logger.info('Стартую... пщщщ... пип-пип!')
     result = fetch_updates()
