@@ -1,6 +1,6 @@
 import os
 import logging
-from functools import wraps
+from contextvars import ContextVar
 
 import requests
 from telegram.ext import Updater
@@ -10,17 +10,8 @@ TELEGRAM_TOKEN = os.environ['TELEGRAM_TOKEN']
 DEVMAN_TOKEN=os.environ['DEVMAN_TOKEN']
 
 logger = logging.getLogger('bot_logger')
-G = {}
+chat_id = ContextVar('chat_id')
 
-
-
-def update_chat_id(func):
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        update, context = args
-        G.update({'chat_id': update.effective_chat.id})
-        return func(*args, **kwargs)
-    return wrapper
 
 
 class BotHandler(logging.Handler):
@@ -30,11 +21,10 @@ class BotHandler(logging.Handler):
 
     def emit(self, record):
         msg = self.format(record)
-        self.bot.send_message(chat_id=G.get('chat_id'), text=msg)
+        self.bot.send_message(chat_id=chat_id.get(), text=msg)
 
 
 class DevmanAPI:
-
     def __init__(self, url='https://dvmn.org/api/user_reviews/', timeout=None):
         self._url = url
         self._timeout = timeout
@@ -106,20 +96,21 @@ def fetch_updates():
     return result
 
 
-@update_chat_id
 def error(update, context):
+    chat_id.set(update.effective_chat.id)
     logger.debug(f'Update {update} caused error {context.error}')
 
 
-@update_chat_id
 def hello_user(update, context):
+    chat_id.set(update.effective_chat.id)
+
     username = update.effective_user.username
     message = f'Hello, {username}!'
     context.bot.send_message(chat_id=update.effective_chat.id, text=message)
 
 
-@update_chat_id
 def check(update, context):
+    chat_id.set(update.effective_chat.id)
 
     logger.info('Стартую... пщщщ... пип-пип!')
     result = fetch_updates()
