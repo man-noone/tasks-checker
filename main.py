@@ -2,15 +2,16 @@ import os
 import logging
 from functools import wraps
 
+import requests
 from telegram.ext import Updater
 from telegram.ext import CommandHandler
 
-from config import logger
-from devman import DevmanAPI
-
-
 TELEGRAM_TOKEN = os.environ['TELEGRAM_TOKEN']
+DEVMAN_TOKEN=os.environ['DEVMAN_TOKEN']
+
+logger = logging.getLogger('bot_logger')
 G = {}
+
 
 
 def update_chat_id(func):
@@ -30,6 +31,53 @@ class BotHandler(logging.Handler):
     def emit(self, record):
         msg = self.format(record)
         self.bot.send_message(chat_id=G.get('chat_id'), text=msg)
+
+
+class DevmanAPI:
+
+    def __init__(self, url='https://dvmn.org/api/user_reviews/', timeout=None):
+        self._url = url
+        self._timeout = timeout
+        self._params = {}
+
+        self.response = self._make_request(url=self._url, params=self._params, timeout=self._timeout)
+
+
+    def _make_request(self, url='', params=None, timeout=None):
+
+        headers = {'Authorization': f'token {DEVMAN_TOKEN}'}
+
+        while True:
+            try:
+                r = requests.get(url, headers=headers,
+                                      params=params,
+                                      timeout=timeout)
+                r.raise_for_status()
+
+            except requests.exceptions.ReadTimeout:
+                logger.debug('Timeout', exc_info=True)
+                continue
+            except requests.exceptions.ConnectionError:
+                logger.debug('Connection Error', exc_info=True)
+                continue
+            else:
+                response = r.json()
+                status = response.get('status')
+
+                logger.debug(f'Got from server: {response}')
+
+                if status == 'timeout':
+                    params.update({'timestamp': response.get('timestamp_to_request')})
+                    logger.debug(f"Server's timeout is running out. {response}")
+                    continue
+                elif status == 'found':
+                    logger.debug(f'Server found submitted works - {response}')
+                    return response
+                else:
+                    return None
+
+    def __str__(self):
+        return f'<DevmanAPI. Result: {self.response}>'
 
 
 def fetch_updates():
@@ -56,6 +104,7 @@ def fetch_updates():
     }
 
     return result
+
 
 @update_chat_id
 def error(update, context):
@@ -92,9 +141,17 @@ def check(update, context):
 
 
 if __name__ == '__main__':
+
+    logging.basicConfig(level=logging.DEBUG,
+                        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', datefmt='%d.%b.%Y %H:%M:%S')
+
     updater = Updater(token=TELEGRAM_TOKEN, use_context=True)
     dispatcher = updater.dispatcher
     bot = updater.bot
+
+    bot_handler = BotHandler(bot)
+    bot_handler.setLevel(logging.DEBUG)
+    logger.addHandler(bot_handler)
 
     start_handler = CommandHandler('start', hello_user)
     dispatcher.add_handler(start_handler)
@@ -104,20 +161,9 @@ if __name__ == '__main__':
 
     dispatcher.add_error_handler(error)
 
-    bot_handler = BotHandler(bot)
-    bot_handler.setLevel(logging.DEBUG)
-    logger.addHandler(bot_handler)
-
     while True:
         try:
             updater.start_polling()
-            # raise ZeroDivisionError
             updater.idle()
         except Exception as e:
-            # Я не могу отправить сообщение пользователю
-            # без chat_id, а он появляется только после того, как
-            # пользователь хоть что-то напишет.
-            # Если исключение возбуждается уже после некоторого взаимодействия
-            # с пользователем,то пользователь получит traceback.
-            # Но во всех случаях бот продолжает работать.
             logger.debug(f'Error occured:\n{e}', exc_info=True)
